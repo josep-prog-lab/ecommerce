@@ -1,7 +1,8 @@
+require('dotenv').config();
 const express = require("express");
-const mongoose = require("mongoose");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
+const supabase = require('./config/supabase');
 const authRouter = require("./routes/auth/auth-routes");
 const adminProductsRouter = require("./routes/admin/products-routes");
 const adminOrderRouter = require("./routes/admin/order-routes");
@@ -15,13 +16,18 @@ const shopReviewRouter = require("./routes/shop/review-routes");
 
 const commonFeatureRouter = require("./routes/common/feature-routes");
 
-//create a database connection -> u can also
-//create a separate file for this and then import/use that file here
+// Verify Supabase connection
+const testConnection = async () => {
+  try {
+    const { data, error } = await supabase.from('users').select('count', { count: 'exact' });
+    if (error) throw error;
+    console.log('Supabase connected successfully');
+  } catch (error) {
+    console.error('Supabase connection error:', error.message);
+  }
+};
 
-mongoose
-  .connect("db_url")
-  .then(() => console.log("MongoDB connected"))
-  .catch((error) => console.log(error));
+testConnection();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
