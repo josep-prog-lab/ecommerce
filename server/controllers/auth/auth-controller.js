@@ -1,27 +1,41 @@
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
-const User = require("../../models/User");
+const supabase = require("../../config/supabase");
 
-//register
+// Register user
 const registerUser = async (req, res) => {
   const { userName, email, password } = req.body;
 
   try {
-    const checkUser = await User.findOne({ email });
-    if (checkUser)
+    // Check if user exists
+    const { data: existingUser } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+
+    if (existingUser) {
       return res.json({
         success: false,
         message: "User Already exists with the same email! Please try again",
       });
+    }
 
     const hashPassword = await bcrypt.hash(password, 12);
-    const newUser = new User({
-      userName,
-      email,
-      password: hashPassword,
-    });
+    
+    // Create new user
+    const { data: newUser, error } = await supabase
+      .from('users')
+      .insert([{
+        user_name: userName,
+        email,
+        password: hashPassword,
+        role: 'user'
+      }])
+      .select()
+      .single();
 
-    await newUser.save();
+    if (error) throw error;
     res.status(200).json({
       success: true,
       message: "Registration successful",
@@ -40,43 +54,54 @@ const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
   try {
-    const checkUser = await User.findOne({ email });
-    if (!checkUser)
-      return res.json({
-        success: false,
-        message: "User doesn't exists! Please register first",
-      });
+    // Find user by email
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
 
-    const checkPasswordMatch = await bcrypt.compare(
-      password,
-      checkUser.password
-    );
-    if (!checkPasswordMatch)
-      return res.json({
+    if (!user || error) {
+      return res.status(401).json({
         success: false,
-        message: "Incorrect password! Please try again",
+        message: "User doesn't exist! Please register first",
       });
+    }
+
+    const checkPasswordMatch = await bcrypt.compare(password, user.password);
+    
+    if (!checkPasswordMatch) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid credentials!",
+      });
+    }
 
     const token = jwt.sign(
-      {
-        id: checkUser._id,
-        role: checkUser.role,
-        email: checkUser.email,
-        userName: checkUser.userName,
+      { 
+        id: user.id, 
+        email: user.email, 
+        role: user.role,
+        userName: user.user_name 
       },
-      "CLIENT_SECRET_KEY",
-      { expiresIn: "60m" }
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
     );
 
-    res.cookie("token", token, { httpOnly: true, secure: false }).json({
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      path: "/"
+    });
+
+    const { password: _, ...userWithoutPassword } = user;
+
+    res.status(200).json({
       success: true,
-      message: "Logged in successfully",
-      user: {
-        email: checkUser.email,
-        role: checkUser.role,
-        id: checkUser._id,
-        userName: checkUser.userName,
-      },
+      message: "Login successful!",
+      user: userWithoutPassword
     });
   } catch (e) {
     console.log(e);
@@ -117,4 +142,49 @@ const authMiddleware = async (req, res, next) => {
   }
 };
 
-module.exports = { registerUser, loginUser, logoutUser, authMiddleware };
+// Check auth status
+const checkAuth = async (req, res) => {
+  const token = req.cookies.token;
+  
+  if (!token) {
+    return res.status(401).json({
+      success: false,
+      message: "No authentication token",
+      isAuthenticated: false
+    });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, email, user_name, role')
+      .eq('id', decoded.id)
+      .single();
+
+    if (error || !user) {
+      throw new Error('User not found');
+    }
+
+    res.status(200).json({
+      success: true,
+      isAuthenticated: true,
+      user
+    });
+  } catch (error) {
+    console.log('Check auth error:', error);
+    res.status(401).json({
+      success: false,
+      message: "Invalid authentication token",
+      isAuthenticated: false
+    });
+  }
+};
+
+module.exports = { 
+  registerUser, 
+  loginUser, 
+  logoutUser, 
+  authMiddleware,
+  checkAuth 
+};

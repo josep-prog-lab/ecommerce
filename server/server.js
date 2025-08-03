@@ -34,15 +34,9 @@ const PORT = process.env.PORT || 5000;
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST", "DELETE", "PUT"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Cache-Control",
-      "Expires",
-      "Pragma",
-    ],
+    origin: true, // Allow all origins in development
+    methods: ["GET", "POST", "DELETE", "PUT", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
     credentials: true,
   })
 );
@@ -62,4 +56,7 @@ app.use("/api/shop/review", shopReviewRouter);
 
 app.use("/api/common/feature", commonFeatureRouter);
 
-app.listen(PORT, () => console.log(`Server is now running on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Server is now running on http://localhost:${PORT}`);
+  console.log('Press Ctrl+C to quit.');
+});

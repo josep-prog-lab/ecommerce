@@ -1,5 +1,5 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
-import axios from "axios";
+import axiosInstance from "../../config/axios";
 
 const initialState = {
   isAuthenticated: false,
@@ -11,13 +11,7 @@ export const registerUser = createAsyncThunk(
   "/auth/register",
 
   async (formData) => {
-    const response = await axios.post(
-      "http://localhost:5000/api/auth/register",
-      formData,
-      {
-        withCredentials: true,
-      }
-    );
+    const response = await axiosInstance.post("/api/auth/register", formData);
 
     return response.data;
   }
@@ -27,13 +21,7 @@ export const loginUser = createAsyncThunk(
   "/auth/login",
 
   async (formData) => {
-    const response = await axios.post(
-      "http://localhost:5000/api/auth/login",
-      formData,
-      {
-        withCredentials: true,
-      }
-    );
+    const response = await axiosInstance.post("/api/auth/login", formData);
 
     return response.data;
   }
